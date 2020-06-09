@@ -12,6 +12,10 @@ import dataload
 import warnings
 warnings.filterwarnings("ignore")
 
+# def softmax(values):
+    # Return max softmax of given list
+    # tmp = []
+    
 
 def main(args):
     """
@@ -25,6 +29,7 @@ def main(args):
     epsilon = args.epsilon
     T = args.temperature
     out_dataset = args.out_dataset
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Load Pretrained densenet model (CIFAR100)
     densenet = torch.load("./models/densenet100.pth")
@@ -40,11 +45,14 @@ def main(args):
     # Load in-distribution test set && out-distribution test set
     in_testloader, out_testloader = dataload.test_loader(out_dataset,workers=2)
 
+    if (not os.path.exists("./softmax_scores")):
+        os.mkdir("./softmax_scores")
+
     # Files for calculate metric
-    f1 = open("./softmax_scores/confidence_Base_In.txt", 'w')
-    f2 = open("./softmax_scores/confidence_Base_Out.txt", 'w')
-    g1 = open("./softmax_scores/confidence_Our_In.txt", 'w')
-    g2 = open("./softmax_scores/confidence_Our_Out.txt", 'w')
+    f1 = open("./softmax_scores/confidence_Base_In.txt", 'w+')
+    f2 = open("./softmax_scores/confidence_Base_Out.txt", 'w+')
+    g1 = open("./softmax_scores/confidence_Our_In.txt", 'w+')
+    g2 = open("./softmax_scores/confidence_Our_Out.txt", 'w+')
 
     N = 10000
     t0 = time.time()
@@ -53,18 +61,32 @@ def main(args):
     ###In-distribution###
     for idx, data in enumerate(in_testloader):
 
-
         # TODO 1: calculate the max softmax score of baseline (no perturbation & no T scaling)
+        images, _ = data
+        inputs = torch.autograd.Variable(images.to(device), requires_grad=True)
+        raw_output = module(inputs)
+        output = raw_output.cpu().view([-1])
 
         # In order to use metric.py, pass the max_score(float) to below line
-        max_score: float  = None
-        f1.write("{}, {}, {}\n".format(T, epsilon, max_score))
-
+        max_score: float  = max(F.softmax(output))
+        f1.write("{}, {}, {}\n".format(T, epsilon, max_score.detach().numpy()))
 
         # TODO 2: calculate the max softmax score of ODIN
         # Hint: torch.nn.autograd.Variable would be helpful
+        raw_output = raw_output / T
 
-        max_score: float  = None
+        maxIdx = torch.argmax(output).data
+        labels = torch.autograd.Variable(torch.LongTensor([maxIdx])).to(device)
+        perturbation = F.cross_entropy(raw_output, labels)
+        perturbation.backward()
+
+        gradient = torch.sign(inputs.grad)
+        new_inputs = torch.add(inputs, -1*epsilon*gradient)
+        output = module(new_inputs).cpu().view([-1])
+        output = output / T
+
+        max_score: float  = max(F.softmax(output))
+        max_score = max_score.detach().numpy()
         g1.write("{}, {}, {}\n".format(T, epsilon, max_score))
 
         if idx  % 100 == 99:
@@ -78,18 +100,31 @@ def main(args):
     print("Processing out-of-distribution images")
     ###Out-of-Distributions###
     for idx, data in enumerate(out_testloader):
-
-
+        
+        images, _ = data
+        inputs = torch.autograd.Variable(images.to(device), requires_grad=True)
+        raw_output = module(inputs)
+        output = raw_output.cpu().view([-1])
 
         # TODO 3: calculate the max softmax score of baseline (no perturbation & no T scaling)
-        max_score: float  = None
-        f2.write("{}, {}, {}\n".format(T, epsilon, max_score))
+        max_score: float  = max(F.softmax(output))
+        f2.write("{}, {}, {}\n".format(T, epsilon, max_score.detach().numpy()))
 
+        raw_output = raw_output / T
 
+        maxIdx = torch.argmax(output).data
+        labels = torch.autograd.Variable(torch.LongTensor([maxIdx])).to(device)
+        perturbation = F.cross_entropy(raw_output, labels)
+        perturbation.backward()
 
+        gradient = torch.sign(inputs.grad)
+        new_inputs = torch.add(inputs, -1*epsilon*gradient)
+        output = module(new_inputs).cpu().view([-1])
+        output = output / T
 
         # TODO 4: calculate the max softmax score of baseline (no perturbation & no T scaling)
-        max_score: float  = None
+        max_score: float  = max(F.softmax(output))
+        max_score = max_score.detach().numpy()
         g2.write("{}, {}, {}\n".format(T,epsilon, max_score))
 
         if idx % 100 == 99:
