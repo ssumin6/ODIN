@@ -69,7 +69,7 @@ def main(args):
 
         # In order to use metric.py, pass the max_score(float) to below line
         max_score: float  = max(F.softmax(output))
-        f1.write("{}, {}, {}\n".format(T, epsilon, max_score.detach().numpy()))
+        f1.write("{}, {}, {}\n".format(T, epsilon, max_score.item()))
 
         # TODO 2: calculate the max softmax score of ODIN
         # Hint: torch.nn.autograd.Variable would be helpful
@@ -86,8 +86,7 @@ def main(args):
         output = output / T
 
         max_score: float  = max(F.softmax(output))
-        max_score = max_score.detach().numpy()
-        g1.write("{}, {}, {}\n".format(T, epsilon, max_score))
+        g1.write("{}, {}, {}\n".format(T, epsilon, max_score.item()))
 
         if idx  % 100 == 99:
             print("{:4}/{:4} images processed, {:.1f} seconds used.".format(idx+1, N, time.time()-t0))
@@ -108,7 +107,7 @@ def main(args):
 
         # TODO 3: calculate the max softmax score of baseline (no perturbation & no T scaling)
         max_score: float  = max(F.softmax(output))
-        f2.write("{}, {}, {}\n".format(T, epsilon, max_score.detach().numpy()))
+        f2.write("{}, {}, {}\n".format(T, epsilon, max_score.item()))
 
         raw_output = raw_output / T
 
@@ -124,8 +123,7 @@ def main(args):
 
         # TODO 4: calculate the max softmax score of baseline (no perturbation & no T scaling)
         max_score: float  = max(F.softmax(output))
-        max_score = max_score.detach().numpy()
-        g2.write("{}, {}, {}\n".format(T,epsilon, max_score))
+        g2.write("{}, {}, {}\n".format(T,epsilon, max_score.item()))
 
         if idx % 100 == 99:
             print("{:4}/{:4} images processed, {:.1f} seconds used.".format(idx+1, N, time.time()-t0))
